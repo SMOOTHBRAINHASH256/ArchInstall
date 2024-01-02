@@ -1,0 +1,48 @@
+#WORK IN PROGRESS THIS IS A SIDE PROJECT
+##########################
+#CHANGE THESE SETTINGS
+ADMIN_USER="someUser"
+ADMIN_PASS="somePass"
+ROOT_PASS="rootPass"
+##########################
+loadkeys us
+ls /sys/firmware/efi/efivars
+timedatectl set-ntp true
+parted -s -a optimal /dev/xvda mklabel gpt
+parted -s -a optimal /dev/xvda mkpart ESP fat32 2048s 500MB
+parted -s -a optimal /dev/xvda mkpart primary linux-swap 500MB 16G
+parted -s -a optimal /dev/xvda mkpart primary ext4 16G 100%
+parted -s /dev/xvda set 1 esp on
+mkfs.fat -F 32 /dev/xvda1
+mkswap /dev/xvda2
+mkfs.ext4 /dev/xvda3
+mkdir -p /mnt
+mount /dev/xvda3 /mnt
+mkdir -p /mnt/boot/efi
+mount /dev/xvda1 /mnt/boot/efi
+swapon /dev/xvda2
+#CHECK FILESYSTEM LOOK FOR EFI SYSTEM, LINUX SWAP, LINUX FILESYSTEM
+lsblk
+fdisk -l
+#END CHECK FILESYSTEM
+pacstrap /mnt base linux linux-firmware sof-firmware base-devel grub efibootmgr nano networkmanager
+genfstab -U /mnt >> /mnt/etc/fstab
+arch-chroot /mnt
+ln -sf /usr/share/zoneinfo/US/Eastern /etc/localtime
+locale-gen
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
+echo "ARCHDEV" > /etc/hostname
+useradd -m -G wheel -s /bin/bash $ADMIN_USER
+echo "$ADMIN_PASS" | passwd $ADMIN_USER
+###Uncomment the "Wheel" line for sudo group in visudo file###
+EDITOR=nano visudo
+##(set root user pass)
+echo "$ROOT_PASS" | passwd root
+systemctl enable NetworkManager
+grub-install /dev/xvda
+grub-mkconfig -o /boot/grub/grub.cfg
+exit
+umount -R /mnt
+reboot
+timedatectl set-timezone US/Eastern
